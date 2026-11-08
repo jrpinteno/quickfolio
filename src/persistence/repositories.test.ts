@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSave, loadMarket, loadPortfolio, type Saved } from './repositories';
+import { createSave, loadMarket, loadPortfolio, saveMarket } from './repositories';
 import { KEYS } from './storage';
 
 /** An in-memory stand-in for the browser's localStorage, refusing writes past `quota` characters. */
@@ -66,11 +66,9 @@ describe('loadPortfolio', () => {
       expect(error).toContain('too full to keep a copy');
       expect(data.has(KEYS.unreadablePortfolio)).toBe(false);
       // Saving then leaves the original alone, and says so.
-      const save = createSave({ protectPortfolio: true });
+      const save = createSave({ protectPortfolio: true, market: () => undefined });
 
-      expect(
-         save({ portfolio: { trades: [], cash: {} }, snapshots: [], market: { quotes: {}, fx: { USD: 1 } } }, { portfolio: true }),
-      ).toContain('not being saved');
+      expect(save({ portfolio: { trades: [], cash: {} } })).toEqual({ ok: false, reason: 'protected' });
       expect(data.get(KEYS.portfolio)).toBe('not json');
    });
 
@@ -118,47 +116,45 @@ describe('loadMarket', () => {
    });
 });
 
+describe('saveMarket', () => {
+   it('never throws, dropping the cache when even the latest quotes do not fit', () => {
+      const store = useStorage({}, 10);
+
+      expect(() => saveMarket({ quotes: {}, fx: { USD: 1 } })).not.toThrow();
+      expect(store.has(KEYS.market)).toBe(false);
+   });
+});
+
 describe('createSave', () => {
    const closes = Array.from({ length: 400 }, (_, i) => ({ date: `2025-01-${i}`, close: i }));
    const market = {
       quotes: { AAA: { symbol: 'AAA', currency: 'USD', price: 1, marketTime: 0, dividends: [], splits: [], closes } },
       fx: { USD: 1 },
    };
-   const data = (cash: number): Saved => ({ portfolio: { trades: [], cash: { EUR: cash } }, snapshots: [], market });
+   const portfolio = (cash: number) => ({ trades: [], cash: { EUR: cash } });
 
    it('makes room for the portfolio by giving up the price history', () => {
       // Storage holds the full cache with almost nothing to spare.
       const cached = JSON.stringify(market);
       const store = useStorage({ [KEYS.market]: cached }, KEYS.market.length + cached.length + 40);
 
-      expect(createSave()(data(5), { portfolio: true })).toBeUndefined();
+      expect(createSave({ market: () => market })({ portfolio: portfolio(5) })).toEqual({ ok: true });
       expect(storedCash(store)).toBe(5);
       const cache = JSON.parse(store.get(KEYS.market)!) as { quotes: Record<string, { closes: unknown[] }> };
 
       expect(cache.quotes.AAA!.closes).toEqual([]);
    });
 
-   it('never throws over the market cache alone', () => {
-      const store = useStorage({}, 10);
-
-      expect(createSave()(data(1), { market: true })).toBeUndefined();
-      expect(store.has(KEYS.market)).toBe(false);
-   });
-
-   it('keeps retrying what it could not save, and clears the error only once it is stored', () => {
-      const tiny: Saved = {
-         portfolio: { trades: [], cash: { EUR: 1 } },
-         snapshots: [],
-         market: { quotes: {}, fx: { USD: 1 } },
-      };
+   it('keeps retrying what it could not save, and reports it until it is stored', () => {
       const store = useStorage({ filler: 'x'.repeat(100) }, 120);
-      const save = createSave();
+      const save = createSave({ market: () => undefined });
+      const full = { ok: false, reason: 'full', unsaved: ['portfolio'] };
 
-      expect(save(tiny, { portfolio: true })).toContain('trades and cash could not be saved');
-      // A later save of the market alone must not hide that the trades are still unsaved.
-      expect(save(tiny, { market: true })).toContain('trades and cash could not be saved');
+      expect(save({ portfolio: portfolio(1) })).toEqual(full);
+      // A later save without the portfolio must not hide that it is still unsaved.
+      expect(save({})).toEqual(full);
       store.delete('filler');
-      expect(save(tiny, { market: true })).toBeUndefined();
+      expect(save({})).toEqual({ ok: true });
       expect(storedCash(store)).toBe(1);
    });
 });

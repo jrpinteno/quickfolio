@@ -1,22 +1,13 @@
 // Composition root: loads what is stored, wires the app to its data sources and the page, and starts it.
 import './styles/index.css';
+import { loadKept, persistChanges, type Persistence } from './app/persist';
 import { refresh as runRefresh, type RefreshDeps } from './app/refresh';
 import { initialView, type AppState } from './app/state';
 import { createStore } from './app/store';
 import { getReferenceRates, getUsdRateHistory, getUsdRates } from './market/frankfurter';
 import { yahoo } from './market/yahoo';
+import { createLocalPersistence } from './persistence/local';
 import { loadPreferences, savePreferences } from './persistence/preferences';
-import {
-   createSave,
-   loadBackupReminderDismissed,
-   loadLastExport,
-   loadMarket,
-   loadPortfolio,
-   loadSavedElsewhere,
-   loadSnapshots,
-   saveBackupReminderDismissed,
-   saveLastExport,
-} from './persistence/repositories';
 import { mountDashboard } from './ui/dashboard';
 import { mountDisplayMenu } from './ui/display/display-menu';
 import { initialDisplay } from './ui/display/themes';
@@ -27,96 +18,26 @@ import { mountTradeForm } from './ui/forms/trade-form';
 /** Refresh again on tab focus if the last refresh is older than this. */
 const STALE_AFTER_MS = 5 * 60 * 1000;
 
+// Trades, cash and history are kept behind the storage ports; display choices stay in this browser, as the
+// theme has to be read before the page first paints (public/theme-boot.js).
+const persistence: Persistence = createLocalPersistence();
 const preferences = loadPreferences();
-const stored = loadPortfolio();
 const store = createStore<AppState>({
-   portfolio: stored.portfolio,
-   storageWarning: stored.error,
-   market: loadMarket(),
-   snapshots: loadSnapshots(),
+   ...(await loadKept(persistence)),
    status: { refreshing: false, failed: new Map() },
    view: initialView(preferences),
-   lastExport: loadLastExport(),
-   backupReminderDismissed: loadBackupReminderDismissed(),
 });
 
-// Persistence follows the state: whatever changed is written back, except what was adopted from another tab,
-// which is already stored.
-const save = createSave({ protectPortfolio: stored.protect });
-const adopted = new WeakSet<object>();
-
 store.subscribe((s, prev) => {
-   const changed = {
-      portfolio: s.portfolio !== prev.portfolio && !adopted.has(s.portfolio),
-      market: s.market !== prev.market,
-      snapshots: s.snapshots !== prev.snapshots && !adopted.has(s.snapshots),
-   };
-
-   if (changed.portfolio || changed.market || changed.snapshots) {
-      const saveError = save(s, changed);
-
-      // Reported in a later update, so every subscriber sees this one first.
-      if (saveError !== s.saveError) {
-         queueMicrotask(() => store.update((x) => (x.saveError === saveError ? x : { ...x, saveError })));
-      }
-   }
-
    if (s.view !== prev.view) {
       savePreferences(s.view, prev.view);
    }
-
-   if (s.lastExport !== prev.lastExport) {
-      saveLastExport(s.lastExport);
-   }
-
-   if (s.backupReminderDismissed !== prev.backupReminderDismissed) {
-      saveBackupReminderDismissed(s.backupReminderDismissed === true);
-   }
-
-   keepStorage(s);
 });
-
-// Browsers may clear a site's storage when the disk runs low. Once there is something to lose, ask for
-// it to be kept; the browser decides, and may ask the user.
-let keepAsked = false;
-
-function keepStorage({ portfolio }: AppState): void {
-   if (keepAsked || (portfolio.trades.length === 0 && Object.keys(portfolio.cash).length === 0)) {
-      return;
-   }
-
-   keepAsked = true;
-   // Missing in older browsers and outside secure contexts, whatever the DOM types say.
-   (navigator.storage as Partial<StorageManager> | undefined)?.persist?.().catch(() => undefined);
-}
 
 const deps: RefreshDeps = { prices: yahoo, rates: { getUsdRates, getUsdRateHistory, getReferenceRates } };
 const refresh = () => void runRefresh(store, deps);
 
-// Every tab holds the data in memory and saves all of it on a change, so a tab that missed another's save
-// would write its older copy over it. What another tab saves is adopted instead. The market cache isn't:
-// each tab refreshes its own, and a stock it hasn't seen yet is fetched.
-window.addEventListener('storage', (event) => {
-   const change = loadSavedElsewhere(event.key);
-
-   if (!change) {
-      return;
-   }
-
-   for (const data of [change.portfolio, change.snapshots]) {
-      if (data) {
-         adopted.add(data);
-      }
-   }
-
-   store.update((s) => ({ ...s, ...change }));
-
-   const { portfolio, market } = store.get();
-
-   if (change.portfolio && portfolio.trades.some((t) => !market.quotes[t.symbol])) {
-      refresh();
-   }
-});
+persistChanges(store, persistence, refresh);
 
 let display = initialDisplay(preferences);
 
@@ -153,7 +74,6 @@ window.addEventListener('resize', () => {
 });
 
 tradeForm.reset();
-keepStorage(store.get());
 
 // Fresh prices replace a cached value that fails to render, so the refresh runs whatever happens.
 try {

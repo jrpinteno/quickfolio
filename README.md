@@ -162,8 +162,8 @@ src/
   domain/       calculations: ledger, FIFO, valuation, returns, history, allocation
   market/       Yahoo and Frankfurter clients
   backup/       data format: validation, migration, export
-  persistence/  localStorage
-  app/          state store and actions (refresh, trades, cash, backup)
+  persistence/  localStorage, behind the app's storage ports
+  app/          state store, actions (refresh, trades, cash, backup) and saving
   ui/           sections, forms, display menu, formatting
   styles/       components, themes, layouts, and the theme fonts
   test/         test builders, a fake market and the simulated page

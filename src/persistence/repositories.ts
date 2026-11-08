@@ -1,5 +1,6 @@
 import type { ExportMark } from '../backup/export';
 import { parsePortfolio, parseSnapshots } from '../backup/schema';
+import type { StoredChange } from '../backup/stored';
 import { isCurrencyCode, isIsoDate, isSymbol } from '../domain/codes';
 import { message } from '../domain/errors';
 import type { MarketData, Quote } from '../domain/market';
@@ -144,21 +145,13 @@ export const saveBackupReminderDismissed = (dismissed: boolean): void => {
    attempt(() => writeText(KEYS.backupReminderDismissed, dismissed ? 'true' : undefined));
 };
 
-/** What another tab saved, for this tab to adopt; only the part under the key it wrote is set. */
-export interface SavedElsewhere {
-   portfolio?: Portfolio;
-   snapshots?: Snapshot[];
-   lastExport?: ExportMark;
-   backupReminderDismissed?: boolean;
-}
-
 /**
  * What another tab just saved under `key`, read back from storage; undefined for a key whose data each
  * tab keeps to itself (the market cache, display choices). A portfolio that is missing or can't be read
  * is undefined too: this tab's trades are never swapped for an empty ledger, and the next tab to start
  * sets the unreadable copy aside.
  */
-export function loadSavedElsewhere(key: string | null): SavedElsewhere | undefined {
+export function loadSavedElsewhere(key: string | null): StoredChange | undefined {
    switch (key) {
       case KEYS.portfolio: {
          const raw = readText(KEYS.portfolio);
@@ -186,19 +179,12 @@ export function loadSavedElsewhere(key: string | null): SavedElsewhere | undefin
    }
 }
 
-/** What is written back to storage. */
-export interface Saved {
-   portfolio: Portfolio;
-   snapshots: Snapshot[];
-   market: MarketData;
-}
-
 /**
  * Caches market data, which can always be fetched again, so it never throws.
  * Without room for everything it keeps the latest quotes but no history,
  * which still shows numbers offline; without room even for that, no cache.
  */
-function saveMarket(market: MarketData): void {
+export function saveMarket(market: MarketData): void {
    if (attempt(() => writeJson(KEYS.market, market))) {
       return;
    }
@@ -212,8 +198,12 @@ function saveMarket(market: MarketData): void {
    dropMarketCache();
 }
 
-/** Writes what changed; returns why something could not be saved, or undefined when everything was. */
-export type Save = (data: Saved, changed: { [K in keyof Saved]?: boolean }) => string | undefined;
+/** What a save stored: the shape of the app's `SaveResult`, which `main.ts` checks when it wires storage in. */
+export type SaveOutcome =
+   { ok: true } | { ok: false; reason: 'full'; unsaved: ('portfolio' | 'snapshots')[] } | { ok: false; reason: 'protected' };
+
+/** Writes the trades and cash or the daily history in `change`, and whatever an earlier save couldn't store. */
+export type Save = (change: Pick<StoredChange, 'portfolio' | 'snapshots'>) => SaveOutcome;
 
 /**
  * A save function for the page's lifetime. It writes the data that can't be
@@ -222,23 +212,39 @@ export type Save = (data: Saved, changed: { [K in keyof Saved]?: boolean }) => s
  * remembered and written again with every later save, so the reported error
  * only clears once it has actually been stored.
  *
- * - Parameter options.protectPortfolio: Never write the portfolio (see `LoadedPortfolio.protect`).
+ * - Parameters:
+ *   - options.protectPortfolio: Never write the portfolio (see `LoadedPortfolio.protect`).
+ *   - options.market: The market data to write back, as far as it fits, after the cache was dropped to make room.
  */
-export function createSave({ protectPortfolio = false } = {}): Save {
+export function createSave({
+   protectPortfolio = false,
+   market,
+}: {
+   protectPortfolio?: boolean;
+   market: () => MarketData | undefined;
+}): Save {
    const unsaved = new Set<'portfolio' | 'snapshots'>(protectPortfolio ? ['portfolio'] : []);
+   // The latest of each, so what an earlier save couldn't store is written again.
+   const latest: Pick<StoredChange, 'portfolio' | 'snapshots'> = {};
 
-   return (data, changed) => {
+   return (change) => {
+      if (change.portfolio) {
+         latest.portfolio = change.portfolio;
+      }
+
+      if (change.snapshots) {
+         latest.snapshots = change.snapshots;
+      }
+
       let shrunk = false;
       const keep = (what: 'portfolio' | 'snapshots', key: typeof KEYS.portfolio | typeof KEYS.snapshots) => {
-         if (!changed[what] && !unsaved.has(what)) {
+         const data = latest[what];
+
+         if ((!change[what] && !unsaved.has(what)) || (what === 'portfolio' && protectPortfolio) || !data) {
             return;
          }
 
-         if (what === 'portfolio' && protectPortfolio) {
-            return;
-         }
-
-         const write = () => writeJson(key, data[what]);
+         const write = () => writeJson(key, data);
          let ok = attempt(write);
 
          if (!ok && !shrunk) {
@@ -257,23 +263,17 @@ export function createSave({ protectPortfolio = false } = {}): Save {
       keep('portfolio', KEYS.portfolio);
       keep('snapshots', KEYS.snapshots);
 
+      const cached = market();
+
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- `keep` above sets it; the checker can't see that.
-      if (changed.market || shrunk) {
-         saveMarket(data.market);
+      if (shrunk && cached) {
+         saveMarket(cached);
       }
 
       if (protectPortfolio) {
-         return (
-            'Changes to trades and cash are not being saved: your earlier saved trades could not be read, ' +
-            'and there is no room to keep a copy of them. Free up space in this browser’s storage and reload.'
-         );
+         return { ok: false, reason: 'protected' };
       }
 
-      const lost = [...unsaved].map((w) => (w === 'portfolio' ? 'trades and cash' : 'daily history'));
-
-      return lost.length
-         ? `Browser storage is full, so your latest ${lost.join(' and ')} could not be saved and will be lost when the page reloads. ` +
-              'Export a backup now.'
-         : undefined;
+      return unsaved.size ? { ok: false, reason: 'full', unsaved: [...unsaved] } : { ok: true };
    };
 }

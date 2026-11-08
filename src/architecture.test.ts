@@ -22,6 +22,11 @@ const CONFINED: [RegExp, string[], string][] = [
    [/\b(document|window)\./, ['ui', 'main.ts'], 'the page'],
 ];
 
+// The one page access storage needs: the browser announces other tabs' writes on the window.
+const EXEMPT: Record<string, RegExp> = {
+   persistence: /\bwindow\.(add|remove)EventListener\('storage', /g,
+};
+
 const sources = import.meta.glob<string>('/src/**/*.ts', { query: '?raw', import: 'default', eager: true });
 const layerOf = (path: string) => path.replace(/^\/src\//, '').split('/')[0]!;
 
@@ -84,8 +89,10 @@ describe('architecture', () => {
             continue;
          }
 
+         const checked = EXEMPT[layer] ? code.replace(EXEMPT[layer], '') : code;
+
          for (const [pattern, layers, what] of CONFINED) {
-            if (pattern.test(code) && !layers.includes(layer)) {
+            if (pattern.test(checked) && !layers.includes(layer)) {
                violations.push(`${path} uses ${what}`);
             }
          }
