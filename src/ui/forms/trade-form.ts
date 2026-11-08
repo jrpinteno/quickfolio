@@ -3,7 +3,7 @@ import type { PriceProvider, RateProvider } from '../../app/ports';
 import { lookupQuote } from '../../app/refresh';
 import type { AppStore } from '../../app/state';
 import {
-   commitTrades,
+   commitTrade,
    deleteTrade,
    deletionConflict,
    PAY_CURRENCIES,
@@ -373,6 +373,8 @@ export function mountTradeForm(store: AppStore, deps: TradeFormDeps): TradeForm 
 
    /** Saves the trade, or says why it can't be saved. */
    async function submit(): Promise<void> {
+      // The form may be cleared while this waits for the symbol and rates; the trade still replaces the one being edited.
+      const replacing = editingId;
       const quote = await resolveSymbol();
 
       if (!quote) {
@@ -386,18 +388,13 @@ export function mountTradeForm(store: AppStore, deps: TradeFormDeps): TradeForm 
       }
 
       const date = dateInput.value;
-      const result = await prepareTrade(
-         store.get(),
-         { input, quote, date, replacing: editingId },
-         editingId ?? crypto.randomUUID(),
-         deps.rates,
-      );
+      const result = await prepareTrade(store.get(), { input, quote, date, replacing }, replacing ?? crypto.randomUUID(), deps.rates);
 
       if ('problem' in result) {
          return setStatus(problemMessage(result.problem, quote.symbol, input, date), true);
       }
 
-      commitTrades(store, result.trades, quote);
+      commitTrade(store, result.trade, replacing, quote);
       reset();
       deps.refresh();
    }

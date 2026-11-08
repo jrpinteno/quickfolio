@@ -27,7 +27,7 @@ main.ts: wires everything together
 1. **Loading the store.** `main.ts` loads the portfolio, market cache, snapshots, preferences and backup state (latest export, dismissed reminder) into one store.
 2. **Writing back.** Subscribers write whatever changed back to storage.
 3. **Rendering.** The dashboard re-renders every section on each change.
-4. **Handling user actions.** The UI calls `app/` functions such as `updateView`, `commitTrades` and `refresh`. Those functions replace state, and nothing mutates it.
+4. **Handling user actions.** The UI calls `app/` functions such as `updateView`, `commitTrade` and `refresh`. Those functions replace state, and nothing mutates it.
 5. **Formatting amounts.** Every amount goes through `ui/format.ts` `createFormat`. "Hide amounts" is therefore decided in one place: `money` and `qty` mask, while `perShare` and percentages stay visible.
 6. **Local-only state.** The trade form keeps its draft to itself; only a saved trade reaches the store. The transactions list keeps its current page the same way, while the page size is a remembered view option. Theme and layout are presentation only and live in `ui/display/`.
 

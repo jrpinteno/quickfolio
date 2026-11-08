@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { TradeInput } from '../domain/trade';
 import { lot, quote, sell } from '../test/fixtures';
-import { initialView, type AppState } from './state';
-import { prepareTrade, previewSale, type TradeDraft } from './trades';
+import { initialView, type AppState, type AppStore } from './state';
+import { createStore } from './store';
+import { commitTrade, prepareTrade, previewSale, type TradeDraft } from './trades';
 
 const rates = { getReferenceRates: async () => ({ eurUsd: 1.25, usdPerUnit: 1 }) };
 const aaa = quote('AAA', 'USD', 60);
@@ -30,6 +31,49 @@ const draft = (extra: Partial<TradeInput> = {}, date = '2026-03-02'): TradeDraft
    input: input(extra),
    quote: aaa,
    date,
+});
+
+describe('commitTrade', () => {
+   const prepared = async (store: AppStore, d: TradeDraft, id: string) => {
+      const result = await prepareTrade(store.get(), d, id, rates);
+
+      if (!('trade' in result)) {
+         throw new Error(`Not prepared: ${result.problem.kind}`);
+      }
+
+      return result.trade;
+   };
+   const ids = (store: AppStore) => store.get().portfolio.trades.map((t) => t.id);
+
+   it('keeps trades saved while the trade was being prepared', async () => {
+      const store = createStore(state());
+      const trade = await prepared(store, draft(), 'new');
+      const elsewhere = lot({ symbol: 'AAA', quantity: 1, gross: 50, date: '2026-02-02' });
+
+      store.update((s) => ({ ...s, portfolio: { ...s.portfolio, trades: [...s.portfolio.trades, elsewhere] } }));
+      commitTrade(store, trade, undefined, aaa);
+      expect(ids(store)).toEqual(['buy-AAA-2026-01-02', 'buy-AAA-2026-02-02', 'new']);
+   });
+
+   it('keeps an edit of a trade removed meanwhile as a new trade', async () => {
+      const trades = [
+         lot({ symbol: 'AAA', quantity: 10, gross: 500, date: '2026-01-02' }),
+         sell({ symbol: 'AAA', quantity: 2, gross: 120, date: '2026-02-02' }),
+      ];
+      const store = createStore(state(trades));
+      const edit = await prepared(
+         store,
+         { ...draft({ quantity: 3, settled: 180 }), replacing: 'sell-AAA-2026-02-02' },
+         'sell-AAA-2026-02-02',
+      );
+
+      store.update((s) => ({ ...s, portfolio: { ...s.portfolio, trades: [trades[0]!] } }));
+      commitTrade(store, edit, 'sell-AAA-2026-02-02', aaa);
+      expect(store.get().portfolio.trades.map((t) => [t.id, t.quantity])).toEqual([
+         ['buy-AAA-2026-01-02', 10],
+         ['sell-AAA-2026-02-02', 3],
+      ]);
+   });
 });
 
 describe('prepareTrade', () => {

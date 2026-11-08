@@ -30,9 +30,12 @@ export type TradeProblem =
    | { kind: 'oversold'; match: Match; trade: Trade }
    | { kind: 'invalid'; reason: string };
 
-/** The ledger with `trade` added, or replacing the trade with id `replacing`. */
+/**
+ * The ledger with `trade` added, or replacing the trade with id `replacing`. An edit of a trade that
+ * is no longer there (another tab removed it) is added as a new trade rather than lost.
+ */
 const withTrade = (trades: Trade[], trade: Trade, replacing: string | undefined): Trade[] =>
-   replacing ? trades.map((t) => (t.id === replacing ? trade : t)) : [...trades, trade];
+   replacing && trades.some((t) => t.id === replacing) ? trades.map((t) => (t.id === replacing ? trade : t)) : [...trades, trade];
 
 /**
  * Reference rates for the trade, or for a straight EUR↔USD conversion the
@@ -130,11 +133,15 @@ export function previewSale(
    return { sale: s.sales.find((x) => x.trade.id === trade.id) };
 }
 
-/** Saves a prepared ledger, keeping the quote looked up for it so the trade is valued before the next refresh. */
-export function commitTrades(store: AppStore, trades: Trade[], quote: Quote): void {
+/**
+ * Saves a prepared trade, keeping the quote looked up for it so the trade is valued before the next
+ * refresh. It goes into the ledger as it is now, not as it was when prepared: preparing waits for
+ * rates, and another tab may have saved trades meanwhile.
+ */
+export function commitTrade(store: AppStore, trade: Trade, replacing: string | undefined, quote: Quote): void {
    store.update((s) => ({
       ...s,
-      portfolio: { ...s.portfolio, trades },
+      portfolio: { ...s.portfolio, trades: withTrade(s.portfolio.trades, trade, replacing) },
       market: { ...s.market, quotes: { ...s.market.quotes, [quote.symbol]: quote } },
    }));
 }
