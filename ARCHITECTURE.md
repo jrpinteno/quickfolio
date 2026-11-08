@@ -29,7 +29,7 @@ main.ts: wires everything together
 3. **Rendering.** The dashboard re-renders every section on each change.
 4. **Handling user actions.** The UI calls `app/` functions such as `updateView`, `commitTrades` and `refresh`. Those functions replace state, and nothing mutates it.
 5. **Formatting amounts.** Every amount goes through `ui/format.ts` `createFormat`. "Hide amounts" is therefore decided in one place: `money` and `qty` mask, while `perShare` and percentages stay visible.
-6. **Local-only state.** The trade form keeps its draft to itself; only a saved trade reaches the store. The transactions list keeps its current page the same way, while the page size is a remembered view option. Theme and layout are presentation only and live in `ui/display/`.
+6. **Local-only state.** The trade form keeps its draft to itself; only a saved trade reaches the store. A total typed with the fees included is turned into the amount before fees (`domain/trade.ts` `settledBeforeFees`) before the trade is built, so stored trades always hold the amount before fees. The transactions list keeps its current page the same way, while the page size is a remembered view option. Theme and layout are presentation only and live in `ui/display/`.
 
 ## Rules worth keeping
 

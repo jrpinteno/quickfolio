@@ -86,6 +86,42 @@ export function impliedEurUsd(input: TradeInput): number | undefined {
 }
 
 /**
+ * The amount settled before fees, from a total that includes them: what a buy cost in all, or what a sale
+ * left after fees. Brokers that convert currency often print only that total, with the fees in the
+ * instrument's currency (Bankinter: "Total líquido"). `input.settled` is that total.
+ *
+ * Fees are converted the way `deriveTrade` will convert them, so the trade it builds adds back up to the
+ * total: at par in the settlement currency, at the rate the amounts imply when charged in the
+ * instrument's currency, and at the reference rate otherwise.
+ *
+ * - Returns: undefined when the fees would take the total to zero or below, or when the
+ *   fees need a reference rate and `ref` is absent.
+ */
+export function settledBeforeFees(input: TradeInput, ref?: ReferenceRates): number | undefined {
+   const { settled: total, fees, feeCurrency, settledIn, currency } = input;
+   // A buy's total paid includes the fees; a sale's total received has them deducted.
+   const sign = input.side === 'buy' ? 1 : -1;
+   let settled: number;
+
+   if (fees === 0 || feeCurrency === settledIn) {
+      settled = total - sign * fees;
+   } else if (feeCurrency === currency) {
+      // The implied rate converts both: total = rate × (gross ± fees), and settled = rate × gross.
+      const gross = input.quantity * input.unitPrice;
+
+      settled = (total * gross) / (gross + sign * fees);
+   } else if (ref) {
+      const usdPer = (c: string) => (c === BASE ? 1 : c === 'EUR' ? ref.eurUsd : ref.usdPerUnit);
+
+      settled = total - (sign * fees * usdPer(feeCurrency)) / usdPer(settledIn);
+   } else {
+      return undefined;
+   }
+
+   return settled > 0 && Number.isFinite(settled) ? settled : undefined;
+}
+
+/**
  * What the broker's conversion cost relative to the reference EUR/USD, as a
  * fraction: positive when you paid more, or received less, than at the
  * reference rate; negative when the conversion was in your favour.

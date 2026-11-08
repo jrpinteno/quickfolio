@@ -16,7 +16,7 @@ import { isSymbol } from '../../domain/codes';
 import { sharesHeld, type Match } from '../../domain/ledger';
 import type { Quote } from '../../domain/market';
 import { today } from '../../domain/time';
-import { conversionCost, impliedEurUsd, type TradeInput } from '../../domain/trade';
+import { conversionCost, impliedEurUsd, settledBeforeFees, type TradeInput } from '../../domain/trade';
 import { BASE, CASH_CURRENCY, type Side, type Trade } from '../../domain/types';
 import { $, field } from '../dom';
 import { createFormat, pct, share, type Format } from '../format';
@@ -24,6 +24,16 @@ import { createFormat, pct, share, type Format } from '../format';
 const DEFAULT_STATUS: Record<Side, string> = {
    buy: 'One entry per purchase, as on the trade confirmation.',
    sell: 'Matched against your oldest purchases first (FIFO). Cash is not changed: update it yourself.',
+};
+
+/** The total's label with fees excluded or included, and the checkbox that switches between them. */
+const SETTLED_LABEL: Record<Side, { excl: string; incl: string; checkbox: string }> = {
+   buy: { excl: 'Total paid, excl. fees', incl: 'Total paid, incl. fees', checkbox: 'The total includes the fees' },
+   sell: {
+      excl: 'Total received, before fees',
+      incl: 'Total received, after fees',
+      checkbox: 'The total is what was left after the fees',
+   },
 };
 
 export interface TradeFormDeps {
@@ -55,6 +65,8 @@ export function mountTradeForm(store: AppStore, deps: TradeFormDeps): TradeForm 
    const settledInput = field(form, 'settled');
    const settledInInput = field<HTMLSelectElement>(form, 'settledIn');
    const feeCurrencyInput = field<HTMLSelectElement>(form, 'feeCurrency');
+   /** Checked when the total is the broker's all-in figure, fees included (paid) or deducted (received). */
+   const inclFeesInput = field(form, 'settledInclFees');
 
    let side: Side = 'buy';
    let editingId: string | undefined;
@@ -92,7 +104,7 @@ export function mountTradeForm(store: AppStore, deps: TradeFormDeps): TradeForm 
 
       const noun = next === 'buy' ? 'purchase' : 'sale';
 
-      $('#settled-label').textContent = next === 'buy' ? 'Total paid, excl. fees' : 'Total received, before fees';
+      setSettledLabels();
       $('#lot-submit').textContent = `Save ${noun}`;
 
       if (!editingId) {
@@ -101,6 +113,35 @@ export function mountTradeForm(store: AppStore, deps: TradeFormDeps): TradeForm 
 
       setStatus(holdingNote() || DEFAULT_STATUS[next]);
       void updatePreview();
+   }
+
+   function setSettledLabels(): void {
+      const incl = inclFeesInput.checked;
+
+      $('#settled-label').textContent = SETTLED_LABEL[side][incl ? 'incl' : 'excl'];
+      $('#settled-incl-label').textContent = SETTLED_LABEL[side].checkbox;
+   }
+
+   /**
+    * The form's amounts with the total taken back to before fees when it includes them, as the trade is stored.
+    * A string says why that isn't possible.
+    */
+   async function beforeFees(input: TradeInput, date: string): Promise<TradeInput | string> {
+      if (!inclFeesInput.checked) {
+         return input;
+      }
+
+      // Fees in a third currency are converted at the ECB rate; the others need no rate.
+      const needsRate = input.fees > 0 && input.feeCurrency !== input.settledIn && input.feeCurrency !== input.currency;
+      const ref = needsRate ? await ratesFor(input, date, deps.rates).catch(() => undefined) : undefined;
+
+      if (needsRate && !ref) {
+         return `Could not get the ECB rates for ${date} to convert the fees.`;
+      }
+
+      const settled = settledBeforeFees(input, ref);
+
+      return settled === undefined ? `The fees are more than the total ${side === 'buy' ? 'paid' : 'received'}.` : { ...input, settled };
    }
 
    /** What the symbol lookup found, plus the shares held when recording a sale. */
@@ -190,14 +231,14 @@ export function mountTradeForm(store: AppStore, deps: TradeFormDeps): TradeForm 
       const unitPrice = Number(unitPriceInput.value);
 
       // Settled in the instrument's own currency: the total is normally just units × price.
-      if (currency && !settledTouched && settledInInput.value === currency && quantity > 0 && unitPrice > 0) {
+      if (currency && !settledTouched && !inclFeesInput.checked && settledInInput.value === currency && quantity > 0 && unitPrice > 0) {
          settledInput.value = (quantity * unitPrice).toFixed(2);
       }
 
-      const input = readInput();
+      const entered = readInput();
       const date = dateInput.value;
 
-      if (!input || !date || !draftQuote) {
+      if (!entered || !date || !draftQuote) {
          preview.hidden = true;
 
          return;
@@ -205,6 +246,19 @@ export function mountTradeForm(store: AppStore, deps: TradeFormDeps): TradeForm 
 
       const quote = draftQuote;
       const request = ++previewRequest;
+      const input = await beforeFees(entered, date);
+
+      if (request !== previewRequest) {
+         return;
+      }
+
+      if (typeof input === 'string') {
+         preview.textContent = input;
+         preview.hidden = false;
+
+         return;
+      }
+
       const ref = await ratesFor(input, date, deps.rates).catch(() => undefined);
 
       if (request !== previewRequest) {
@@ -215,7 +269,9 @@ export function mountTradeForm(store: AppStore, deps: TradeFormDeps): TradeForm 
       const gross = input.quantity * input.unitPrice;
       const parts = [`${input.side === 'buy' ? 'Cost' : 'Proceeds'} ${money(gross, input.currency)}`];
 
-      if (input.settledIn !== input.currency) {
+      if (inclFeesInput.checked) {
+         parts.push(`${money(input.settled, input.settledIn)} before fees`);
+      } else if (input.settledIn !== input.currency) {
          parts.push(`${input.side === 'buy' ? 'paid' : 'received'} ${money(input.settled, input.settledIn)}`);
       }
 
@@ -329,6 +385,8 @@ export function mountTradeForm(store: AppStore, deps: TradeFormDeps): TradeForm 
       unitPriceInput.value = String(t.unitPrice);
       settledInput.value = String(t.settled);
       feesInput.value = String(t.fees);
+      // Trades store the total before fees.
+      inclFeesInput.checked = false;
       const options = [...new Set([t.currency, ...PAY_CURRENCIES])];
 
       setOptions(settledInInput, options, t.settledIn);
@@ -369,6 +427,10 @@ export function mountTradeForm(store: AppStore, deps: TradeFormDeps): TradeForm 
       feeCurrencyTouched = true;
       void updatePreview();
    });
+   inclFeesInput.addEventListener('change', () => {
+      setSettledLabels();
+      void updatePreview();
+   });
    $('#lot-cancel').addEventListener('click', reset);
 
    /** Saves the trade, or says why it can't be saved. */
@@ -379,13 +441,19 @@ export function mountTradeForm(store: AppStore, deps: TradeFormDeps): TradeForm 
          return;
       }
 
-      const input = readInput();
+      const entered = readInput();
 
-      if (!input) {
+      if (!entered) {
          return setStatus(`Enter units, price per unit and the total ${side === 'buy' ? 'paid' : 'received'}.`, true);
       }
 
       const date = dateInput.value;
+      const input = await beforeFees(entered, date);
+
+      if (typeof input === 'string') {
+         return setStatus(input, true);
+      }
+
       const result = await prepareTrade(
          store.get(),
          { input, quote, date, replacing: editingId },

@@ -2,6 +2,7 @@
 // controls, with prices from a fake market. Calculations are tested next to their code; these tests
 // check the wiring between the sections, the forms, the store and browser storage.
 import { afterEach, describe, expect, it } from 'vitest';
+import type { Trade } from './domain/types';
 import { KEYS } from './persistence/storage';
 import { closePage, openPage, type Page, type PageOptions } from './test/page';
 
@@ -123,7 +124,7 @@ const stored = (page: Page): Record<string, string> =>
    );
 const storedPortfolio = (page: Page) =>
    JSON.parse(page.storage.getItem(KEYS.portfolio)!) as {
-      trades: { id: string; quantity: number }[];
+      trades: Pick<Trade, 'id' | 'quantity' | 'settled' | 'eurUsd'>[];
       cash: Record<string, number>;
    };
 
@@ -379,6 +380,54 @@ describe('recording trades', () => {
       expect(page.text('#holdings')).toContain('£0.72');
       expect(page.market.requests.some((url) => url.includes('quotes=GBP'))).toBe(true);
       expectSoundMarkup(page);
+   });
+
+   it('records a purchase from a total that includes the fees, storing it before fees', async () => {
+      const page = await open();
+
+      await page.click('[name="settledInclFees"]');
+      expect(page.text('#settled-label')).toBe('Total paid, incl. fees');
+
+      // As a settlement note prints it: 10 × $200 plus $24 fees, €1,735.00 in all.
+      await page.fill('#lot-form', {
+         symbol: 'AAPL',
+         date: '2026-11-02',
+         quantity: '10',
+         unitPrice: '200',
+         settledIn: 'EUR',
+         settled: '1735',
+         fees: '24',
+         feeCurrency: 'USD',
+      });
+      expect(page.text('#lot-preview')).toContain('€1,714.43 before fees');
+
+      await page.submit('#lot-form');
+      const saved = storedPortfolio(page).trades.at(-1)!;
+
+      expect(saved.settled).toBeCloseTo((1735 * 2000) / 2024, 6);
+      expect(saved.eurUsd).toBeCloseTo(2024 / 1735, 6);
+      expect(page.$<HTMLInputElement>('[name="settledInclFees"]').checked).toBe(false);
+      expect(page.text('#settled-label')).toBe('Total paid, excl. fees');
+   });
+
+   it('refuses fees larger than an all-in total', async () => {
+      const page = await open();
+
+      await page.click('[name="settledInclFees"]');
+      await page.fill('#lot-form', {
+         symbol: 'AAPL',
+         date: '2026-11-02',
+         quantity: '1',
+         unitPrice: '200',
+         settledIn: 'EUR',
+         settled: '10',
+         fees: '10',
+         feeCurrency: 'EUR',
+      });
+      await page.submit('#lot-form');
+
+      expect(page.text('#lot-status')).toBe('The fees are more than the total paid.');
+      expect(storedPortfolio(page).trades).toHaveLength(7);
    });
 
    it('rejects a symbol that does not exist', async () => {

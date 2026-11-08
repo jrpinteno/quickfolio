@@ -74,6 +74,8 @@ Enter each trade as it appears on the broker's confirmation:
 - **The amount that actually settled**, which can be in that currency, EUR or USD.
 - **Fees**, in whichever currency they were charged.
 
+Some brokers print only the all-in figure in your currency: what a purchase cost with fees, or what a sale left after them, with the fees in the stock's currency. Bankinter calls it "Total líquido". Tick **The total includes the fees** and type that figure. The app takes the fees back out at the rate the amounts imply and stores the amount before fees, so the trade adds back up to the broker's total.
+
 When the settled amount is in another currency, the rate it implies is recorded as that trade's FX rate. The preview then shows how far it was from the ECB rate. For a sale, the preview also shows the realized gain and which purchases it's matched with. A sale of more shares than you held is refused.
 
 Editing or deleting a trade recalculates everything that depends on it. Deleting a purchase warns you if a later sale would then sell more shares than you held.

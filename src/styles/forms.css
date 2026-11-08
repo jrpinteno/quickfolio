@@ -74,6 +74,19 @@ details#manage[open] .chevron {
    border-color: var(--accent);
    box-shadow: 0 0 0 3px var(--accent-soft);
 }
+.panel label.check {
+   flex-direction: row;
+   align-items: center;
+   gap: 8px;
+   font-size: 13px;
+}
+.panel label.check input {
+   width: 16px;
+   height: 16px;
+   padding: 0;
+   flex: none;
+   accent-color: var(--accent);
+}
 .input-pair {
    display: flex;
    gap: 6px;
