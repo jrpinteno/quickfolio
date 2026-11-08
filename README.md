@@ -52,6 +52,8 @@ Trades, cash, the daily history and your display choices are stored in the brows
 
 Once there's something to lose, the app asks the browser to keep its storage even when the disk runs low. The browser decides, and Firefox may ask you. Nothing protects it from **Clear site data** or a profile reset, so the export is your backup. The Backup panel shows when you last exported and whether anything changed since. If changes have gone unexported for two weeks, or you've never exported, a banner says so. Once dismissed it doesn't come back; the Backup panel keeps showing the state.
 
+The app can be open in several tabs at once. A change made in one shows up in the others, so none of them saves an older copy over it.
+
 Data saved under one address isn't visible under another. That's why the port is fixed and the server won't start on a different one. To move to another machine or browser, or just to keep a backup, use **Export JSON** there and **Import JSON** on the other side. Imports read every file version the app has ever written.
 
 ### Coming from an older version (port 5173)

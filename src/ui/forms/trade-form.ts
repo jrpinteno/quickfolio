@@ -422,18 +422,26 @@ export function mountTradeForm(store: AppStore, deps: TradeFormDeps): TradeForm 
          const warning = conflict ? `\n\nThe sale of ${conflict.sale.date} would then sell more shares than were held.` : '';
 
          if (confirm(`Remove the ${t.symbol} ${t.side === 'buy' ? 'purchase' : 'sale'} of ${t.date}?${warning}`)) {
-            deleteTrade(store, del);
-
             if (editingId === del) {
                reset();
             }
+
+            deleteTrade(store, del);
          }
       }
    });
 
-   // Amounts in the preview follow the hide switch and the reporting currency.
+   // Another tab may change the ledger: an edit of a trade it removed is abandoned, and the preview is redone.
+   // Amounts in the preview also follow the hide switch and the reporting currency.
    store.subscribe((s, prev) => {
-      if (s.view.hideAmounts !== prev.view.hideAmounts || s.view.reporting !== prev.view.reporting) {
+      if (editingId && s.portfolio !== prev.portfolio && !s.portfolio.trades.some((t) => t.id === editingId)) {
+         reset();
+         setStatus('The trade being edited was removed in another tab.', true);
+
+         return;
+      }
+
+      if (s.portfolio !== prev.portfolio || s.view.hideAmounts !== prev.view.hideAmounts || s.view.reporting !== prev.view.reporting) {
          void updatePreview();
       }
    });

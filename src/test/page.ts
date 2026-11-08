@@ -41,6 +41,8 @@ export interface Page {
    submit(form: string): Promise<void>;
    /** Chooses a file in a file input. */
    upload(input: string, name: string, text: string): Promise<void>;
+   /** Stores a value as another tab of the app would, which the browser announces to this one. */
+   saveInOtherTab(key: string, value: string): Promise<void>;
    /** Waits until no request is in flight and the page has stopped changing. */
    settle(): Promise<void>;
    storage: Storage;
@@ -180,6 +182,14 @@ export async function openPage(start: () => Promise<unknown>, options: PageOptio
             value: [new File([text], name, { type: 'application/json' })],
          });
          input.dispatchEvent(new Event('change', { bubbles: true }));
+         await settle();
+      },
+      async saveInOtherTab(key, value) {
+         const oldValue = localStorage.getItem(key);
+
+         // Browsers announce a write only to the other tabs, never to the tab that made it.
+         localStorage.setItem(key, value);
+         window.dispatchEvent(new StorageEvent('storage', { key, oldValue, newValue: value, storageArea: localStorage }));
          await settle();
       },
       settle,

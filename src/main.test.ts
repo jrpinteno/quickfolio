@@ -612,3 +612,78 @@ describe('browser storage', () => {
       expect(empty.persistRequested()).toBe(true);
    });
 });
+
+describe('another tab', () => {
+   /** The sample as another tab would save it, with `change` applied to its trades. */
+   const sampleWith = (change: (trades: { id: string }[]) => object[], cash = { EUR: 4000 }) =>
+      JSON.stringify({ trades: change([...LOTS, ...SALES]), cash }, null, 1);
+   const VODAFONE = {
+      id: 'v1',
+      symbol: 'VOD.L',
+      date: '2026-10-01',
+      quantity: 1000,
+      currency: 'GBP',
+      cost: 700,
+      fees: 0,
+      feeCurrency: 'GBP',
+      fxRate: 1.3,
+      feeFxRate: 1.3,
+   };
+
+   it('shows what another tab saved, and keeps it when this tab saves next', async () => {
+      const page = await open();
+      const theirs = sampleWith((trades) => trades.filter((t) => t.id !== 's1'));
+
+      await page.saveInOtherTab(KEYS.portfolio, theirs);
+      expect(holdings(page).map(([symbol]) => symbol)).toEqual(['AAPL', 'NOKIA.HE']);
+      // Adopted as stored: writing it back would only repeat the other tab's save.
+      expect(page.storage.getItem(KEYS.portfolio)).toBe(theirs);
+
+      await page.fill('#cash-form', { amount: '5000' });
+      await page.submit('#cash-form');
+      expect(storedPortfolio(page).trades.map((t) => t.id)).not.toContain('s1');
+      expect(storedPortfolio(page).cash).toEqual({ EUR: 5000 });
+   });
+
+   it('fetches the price of a stock another tab added', async () => {
+      const page = await open();
+
+      await page.saveInOtherTab(
+         KEYS.portfolio,
+         sampleWith((trades) => [...trades, VODAFONE]),
+      );
+      expect(holdings(page)).toContainEqual(['VOD.L', '1,000']);
+      expect(page.text('#holdings')).toContain('£0.72');
+      expectSoundMarkup(page);
+   });
+
+   it('ignores trades it cannot read, leaving them to the next start', async () => {
+      const page = await open();
+
+      await page.saveInOtherTab(KEYS.portfolio, '{"trades": 5}');
+      expect(holdings(page)).toHaveLength(3);
+      expect(page.storage.getItem(KEYS.unreadablePortfolio)).toBeNull();
+      expect(warnings(page).join()).not.toContain('could not be read');
+   });
+
+   it('abandons an edit of a trade the other tab removed', async () => {
+      const page = await open();
+
+      await page.click('[data-edit="x1"]');
+      await page.saveInOtherTab(
+         KEYS.portfolio,
+         sampleWith((trades) => trades.filter((t) => t.id !== 'x1')),
+      );
+      expect(page.text('#lot-status')).toBe('The trade being edited was removed in another tab.');
+      expect(page.text('#lot-form-title')).toBe('Add sale');
+      expect(page.$<HTMLInputElement>('#lot-form [name="symbol"]').value).toBe('');
+   });
+
+   it('follows a backup reminder dismissed in another tab', async () => {
+      const page = await open();
+
+      expect(warnings(page).join()).toContain('only in this browser');
+      await page.saveInOtherTab(KEYS.backupReminderDismissed, 'true');
+      expect(warnings(page).join()).not.toContain('only in this browser');
+   });
+});

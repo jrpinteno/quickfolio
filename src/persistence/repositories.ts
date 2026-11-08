@@ -144,6 +144,48 @@ export const saveBackupReminderDismissed = (dismissed: boolean): void => {
    attempt(() => writeText(KEYS.backupReminderDismissed, dismissed ? 'true' : undefined));
 };
 
+/** What another tab saved, for this tab to adopt; only the part under the key it wrote is set. */
+export interface SavedElsewhere {
+   portfolio?: Portfolio;
+   snapshots?: Snapshot[];
+   lastExport?: ExportMark;
+   backupReminderDismissed?: boolean;
+}
+
+/**
+ * What another tab just saved under `key`, read back from storage; undefined for a key whose data each
+ * tab keeps to itself (the market cache, display choices). A portfolio that is missing or can't be read
+ * is undefined too: this tab's trades are never swapped for an empty ledger, and the next tab to start
+ * sets the unreadable copy aside.
+ */
+export function loadSavedElsewhere(key: string | null): SavedElsewhere | undefined {
+   switch (key) {
+      case KEYS.portfolio: {
+         const raw = readText(KEYS.portfolio);
+
+         try {
+            return raw ? { portfolio: parsePortfolio(JSON.parse(raw)) } : undefined;
+         } catch {
+            return undefined;
+         }
+      }
+
+      case KEYS.snapshots:
+         return { snapshots: loadSnapshots() };
+
+      case KEYS.lastExport:
+         return { lastExport: loadLastExport() };
+
+      case KEYS.backupReminderDismissed:
+         return { backupReminderDismissed: loadBackupReminderDismissed() };
+
+      // Null when all of storage was cleared: this tab keeps what it has, and saves it with its next change.
+      case null:
+      default:
+         return undefined;
+   }
+}
+
 /** What is written back to storage. */
 export interface Saved {
    portfolio: Portfolio;

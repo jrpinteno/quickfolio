@@ -12,6 +12,7 @@ import {
    loadLastExport,
    loadMarket,
    loadPortfolio,
+   loadSavedElsewhere,
    loadSnapshots,
    saveBackupReminderDismissed,
    saveLastExport,
@@ -39,14 +40,16 @@ const store = createStore<AppState>({
    backupReminderDismissed: loadBackupReminderDismissed(),
 });
 
-// Persistence follows the state: whatever changed is written back.
+// Persistence follows the state: whatever changed is written back, except what was adopted from another tab,
+// which is already stored.
 const save = createSave({ protectPortfolio: stored.protect });
+const adopted = new WeakSet<object>();
 
 store.subscribe((s, prev) => {
    const changed = {
-      portfolio: s.portfolio !== prev.portfolio,
+      portfolio: s.portfolio !== prev.portfolio && !adopted.has(s.portfolio),
       market: s.market !== prev.market,
-      snapshots: s.snapshots !== prev.snapshots,
+      snapshots: s.snapshots !== prev.snapshots && !adopted.has(s.snapshots),
    };
 
    if (changed.portfolio || changed.market || changed.snapshots) {
@@ -89,6 +92,31 @@ function keepStorage({ portfolio }: AppState): void {
 
 const deps: RefreshDeps = { prices: yahoo, rates: { getUsdRates, getUsdRateHistory, getReferenceRates } };
 const refresh = () => void runRefresh(store, deps);
+
+// Every tab holds the data in memory and saves all of it on a change, so a tab that missed another's save
+// would write its older copy over it. What another tab saves is adopted instead. The market cache isn't:
+// each tab refreshes its own, and a stock it hasn't seen yet is fetched.
+window.addEventListener('storage', (event) => {
+   const change = loadSavedElsewhere(event.key);
+
+   if (!change) {
+      return;
+   }
+
+   for (const data of [change.portfolio, change.snapshots]) {
+      if (data) {
+         adopted.add(data);
+      }
+   }
+
+   store.update((s) => ({ ...s, ...change }));
+
+   const { portfolio, market } = store.get();
+
+   if (change.portfolio && portfolio.trades.some((t) => !market.quotes[t.symbol])) {
+      refresh();
+   }
+});
 
 let display = initialDisplay(preferences);
 
