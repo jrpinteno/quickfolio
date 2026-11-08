@@ -56,6 +56,11 @@ export interface Portfolio {
    trades: Trade[];
    /** Cash balance per ISO currency code; maintained by hand, trades never touch it. */
    cash: Record<string, number>;
+   /**
+    * Tax paid on this portfolio's results per calendar year, in EUR, as filed in the tax return; entered by
+    * hand. It replaces the estimate for that year. Absent when none was entered.
+    */
+   taxPaid?: Record<string, number>;
 }
 
 /** Cash is held, and entered, in a single currency. */

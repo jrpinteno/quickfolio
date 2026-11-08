@@ -21,6 +21,7 @@ import { mountDisplayMenu } from './ui/display/display-menu';
 import { initialDisplay } from './ui/display/themes';
 import { mountBackupControls } from './ui/forms/backup-controls';
 import { mountCashForm } from './ui/forms/cash-form';
+import { mountTaxForm } from './ui/forms/tax-form';
 import { mountTradeForm } from './ui/forms/trade-form';
 
 /** Refresh again on tab focus if the last refresh is older than this. */
@@ -98,6 +99,7 @@ mountDisplayMenu(store, display, (next) => {
    dashboard.renderTrend();
 });
 const cashForm = mountCashForm(store, refresh);
+const taxForm = mountTaxForm(store);
 const backupControls = mountBackupControls(store, () => {
    tradeForm.reset();
    refresh();
@@ -106,6 +108,7 @@ const dashboard = mountDashboard(store, {
    refresh,
    extra: (ctx) => {
       cashForm.render(ctx);
+      taxForm.render(ctx);
       backupControls.render(ctx);
    },
 });

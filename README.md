@@ -19,6 +19,7 @@ A quick-glance tracker for a small stock portfolio. Prices come from Yahoo Finan
 - **Single-stock view.** Click a symbol to narrow the whole dashboard to that one stock.
 - **Themes and layouts:** six themes (Modern, Broadsheet, Terminal, Neon, Brutalist, Zen), and the holdings shown as a table or as cards.
 - **Hide amounts** for sharing screenshots. Every amount and share count becomes `•••`, and percentages and per-share prices stay.
+- **After tax (Spain).** An optional estimate of the Spanish tax on your gains and dividends, year by year, and what selling everything today would leave.
 - **Full export.** One JSON file holds your trades, cash and history, plus every computed figure in both currencies.
 
 ## Getting started
@@ -110,6 +111,21 @@ The ◐ button opens the theme and layout picker. Your choice is remembered, and
 **Hide amounts** replaces every figure that would reveal the portfolio's size with `•••`. That includes values, costs, cash, dividends, share counts, the chart's money axis and scale, and amounts typed into the forms. Returns, weights and per-share prices stay visible. The ◐ button stays highlighted while amounts are hidden, so a screenshot is never taken in the wrong mode by accident.
 
 ![Hidden amounts: every value is •••, while returns, weights and prices stay visible](docs/screenshots/hidden-amounts.png)
+
+### After tax (Spain)
+
+Under **Tax estimate** in the ◐ menu, pick **Spain** to add an **After tax** card. It answers what the portfolio has made once Hacienda has had its share. The card is in EUR whatever the reporting currency, because Spain taxes results in EUR, and it covers the whole portfolio, so it is hidden while one stock is selected.
+
+- **Each year** lists the net result of the year's sales and the gross dividends, the tax on them, and what was kept.
+- **Sell all today** adds today's unrealized result to this year's and shows the extra tax it would cost.
+- **The totals** split what you already took out (sales and dividends after tax) from what is still on paper after tax.
+- **Tax paid, as filed.** Once a year's return is filed, enter the savings tax it charged on these stocks in the **Tax paid, as filed** panel under Trades & cash. It replaces that year's estimate, the card marks it "filed" next to the estimate, and it is saved with your trades and kept in the export. An empty amount removes it. If the return's savings base also held other income, such as crypto, enter the stocks' share: their part of the base times the tax.
+
+It is an estimate:
+- **Brackets.** It uses each year's savings brackets, from 19% to 30%, as if these were your only savings income. Bank interest, funds or crypto sold in the same year are taxed in the same base and reach higher brackets.
+- **Losses** follow the savings-base rules: a loss offsets gains of the same year, then up to 25% of that year's dividends, and the rest carries forward four years.
+- **Dividends** are taken from the price source, valued at the ECB rate of each ex-date. Tax withheld abroad counts towards the Spanish tax up to the Spanish rate (the US withholds 15%, below the Spanish 19%), so it isn't added on top. Withholding above the Spanish rate isn't recovered here.
+- **Not applied:** the two-month rule on losses when you buy the same stock back.
 
 ## How the numbers are worked out
 

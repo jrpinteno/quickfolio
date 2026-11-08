@@ -12,6 +12,7 @@ export const isCurrencyCode = (v: unknown): v is string => typeof v === 'string'
 export const isSymbol = (v: unknown): v is string => typeof v === 'string' && /^[A-Z0-9.^=-]{1,32}$/.test(v);
 
 /** A calendar date as `YYYY-MM-DD`. */
+export const isYear = (v: unknown): v is string => typeof v === 'string' && /^(19|20)\d{2}$/.test(v);
 export const isIsoDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 /** A number that survives a round trip through JSON (no NaN or Infinity). */

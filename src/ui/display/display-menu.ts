@@ -1,4 +1,5 @@
 import { updateView, type AppStore } from '../../app/state';
+import { TAX_REGIMES } from '../../domain/tax';
 import { $ } from '../dom';
 import { THEMES, type Display, type Layout, type ThemeKey } from './themes';
 
@@ -35,6 +36,13 @@ export function mountDisplayMenu(store: AppStore, initial: Display, changed: (di
          b.setAttribute('aria-pressed', String(selected));
       }
 
+      for (const b of document.querySelectorAll<HTMLButtonElement>('[data-tax-choice]')) {
+         const selected = b.dataset.taxChoice === (store.get().view.tax ?? '');
+
+         b.classList.toggle('selected', selected);
+         b.setAttribute('aria-pressed', String(selected));
+      }
+
       const hidden = store.get().view.hideAmounts;
 
       hideInput.checked = hidden;
@@ -58,6 +66,14 @@ export function mountDisplayMenu(store: AppStore, initial: Display, changed: (di
       const target = event.target as HTMLElement;
       const theme = target.closest<HTMLElement>('[data-theme-choice]')?.dataset.themeChoice as ThemeKey | undefined;
       const layout = target.closest<HTMLElement>('[data-layout-choice]')?.dataset.layoutChoice as Layout | undefined;
+      const tax = target.closest<HTMLElement>('[data-tax-choice]')?.dataset.taxChoice;
+
+      // The tax estimate changes what the dashboard computes, so it is a view option in the store.
+      if (tax !== undefined) {
+         updateView(store, { tax: TAX_REGIMES.find((r) => r === tax) });
+
+         return;
+      }
 
       if (theme) {
          display = { ...display, theme };
@@ -72,7 +88,7 @@ export function mountDisplayMenu(store: AppStore, initial: Display, changed: (di
    });
    hideInput.addEventListener('change', () => updateView(store, { hideAmounts: hideInput.checked }));
    store.subscribe((s, prev) => {
-      if (s.view.hideAmounts !== prev.view.hideAmounts) {
+      if (s.view.hideAmounts !== prev.view.hideAmounts || s.view.tax !== prev.view.tax) {
          apply();
       }
    });

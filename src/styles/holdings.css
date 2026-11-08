@@ -151,3 +151,11 @@ td.row-actions {
    gap: 6px;
    justify-content: flex-end;
 }
+
+/* After tax: the totals sit above the yearly table; selling today is set apart from the years already taxed. */
+.tax-totals {
+   margin-bottom: 12px;
+}
+table.tax tr.tax-sell td {
+   border-top: 2px solid var(--line-strong);
+}

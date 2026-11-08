@@ -164,4 +164,18 @@ describe('parsePortfolio', () => {
          expect(() => parsePortfolio({ trades: [{ ...trade, side: 'short' }], cash: {} })).toThrow('Trade #1 is malformed');
       });
    });
+
+   describe('tax paid', () => {
+      it('keeps the tax paid per year, and leaves it out of files without it', () => {
+         expect(parsePortfolio({ trades: [], cash: {}, taxPaid: { 2024: 812.5, 2025: 0 } }).taxPaid).toEqual({ 2024: 812.5, 2025: 0 });
+         expect(parsePortfolio({ trades: [], cash: {} })).not.toHaveProperty('taxPaid');
+         expect(parsePortfolio({ trades: [], cash: {}, taxPaid: {} })).not.toHaveProperty('taxPaid');
+      });
+
+      it('rejects a year or amount that is not one', () => {
+         expect(() => parsePortfolio({ trades: [], cash: {}, taxPaid: { '<b>': 1 } })).toThrow('The tax paid for a year is malformed');
+         expect(() => parsePortfolio({ trades: [], cash: {}, taxPaid: { 2024: -1 } })).toThrow('The tax paid for 2024 is malformed');
+         expect(() => parsePortfolio({ trades: [], cash: {}, taxPaid: [1] })).toThrow('The tax paid per year is malformed');
+      });
+   });
 });

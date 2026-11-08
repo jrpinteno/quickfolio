@@ -3,7 +3,7 @@ import { message } from '../domain/errors';
 import { firstOversold, type Match } from '../domain/ledger';
 import type { Quote } from '../domain/market';
 import { buildTrade, impliedEurUsd, type ReferenceRates, type TradeInput } from '../domain/trade';
-import { BASE, CASH_CURRENCY, type Trade } from '../domain/types';
+import { BASE, CASH_CURRENCY, type Portfolio, type Trade } from '../domain/types';
 import { summarize, type Sale } from '../domain/valuation';
 import type { RateProvider } from './ports';
 import type { AppState, AppStore } from './state';
@@ -156,6 +156,28 @@ export function deletionConflict({ portfolio, market }: AppState, id: string): M
 
 export const deleteTrade = (store: AppStore, id: string): void =>
    store.update((s) => ({ ...s, portfolio: { ...s.portfolio, trades: s.portfolio.trades.filter((t) => t.id !== id) } }));
+
+/** Records the tax paid on the portfolio's results in `year` as filed; undefined removes it, and the estimate shows again. */
+export function setTaxPaid(store: AppStore, year: string, amount: number | undefined): void {
+   store.update((s) => {
+      const taxPaid = { ...s.portfolio.taxPaid };
+
+      if (amount === undefined) {
+         delete taxPaid[year];
+      } else {
+         taxPaid[year] = amount;
+      }
+
+      const portfolio: Portfolio = { ...s.portfolio, taxPaid };
+
+      // An empty record is left out, so a portfolio without any reads as it did before taxPaid existed.
+      if (Object.keys(taxPaid).length === 0) {
+         delete portfolio.taxPaid;
+      }
+
+      return { ...s, portfolio };
+   });
+}
 
 /** Sets the cash balance; zero removes it. */
 export function setCash(store: AppStore, amount: number): void {

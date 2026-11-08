@@ -10,6 +10,7 @@ import { renderHoldings } from './sections/holdings';
 import { renderRealized } from './sections/realized';
 import { renderStatus } from './sections/status';
 import { renderSummary } from './sections/summary';
+import { renderTax } from './sections/tax';
 import { mountTransactions } from './sections/transactions';
 import { renderTrendSection } from './sections/trend/trend';
 import { renderViewbar } from './sections/viewbar';
@@ -28,14 +29,14 @@ export interface Dashboard {
  */
 export function mountDashboard(store: AppStore, actions: { refresh: () => void; extra?: (ctx: RenderContext) => void }): Dashboard {
    const context = (state: AppState): RenderContext => {
-      const { s, full, focused } = viewSummary(state);
+      const { s, full, focused, tax } = viewSummary(state);
       const fmt = createFormat({
          hideAmounts: state.view.hideAmounts,
          fx: state.market.fx,
          reporting: state.view.reporting,
       });
 
-      return { state, s, full, focused, fmt };
+      return { state, s, full, focused, tax, fmt };
    };
    const transactions = mountTransactions($('#lots'), store);
    const trend = (ctx: RenderContext) => renderTrendSection($('#trend'), ctx, (range) => updateView(store, { range }));
@@ -50,6 +51,7 @@ export function mountDashboard(store: AppStore, actions: { refresh: () => void; 
       renderAllocationSection($('#allocation'), ctx);
       trend(ctx);
       renderHoldings($('#holdings'), ctx);
+      renderTax($('#tax'), ctx);
       renderRealized($('#realized'), ctx);
       transactions.render(ctx);
       actions.extra?.(ctx);

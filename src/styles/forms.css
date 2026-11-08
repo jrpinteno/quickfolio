@@ -117,8 +117,8 @@ details#manage[open] .chevron {
    their position would give the length away.
    :placeholder-shown leaves empty fields blank; their placeholder is a single space for that reason. */
 html[data-amounts-hidden]
-   :is(#lot-form, #cash-form)
-   :is([name='quantity'], [name='settled'], [name='fees'], [name='amount']):not(:placeholder-shown) {
+   :is(#lot-form, #cash-form, #tax-form)
+   :is([name='quantity'], [name='settled'], [name='fees'], [name='amount'], [name='taxPaid']):not(:placeholder-shown) {
    color: transparent;
    caret-color: transparent;
    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='8'%3E%3Cg fill='%238a8f98'%3E%3Ccircle cx='3' cy='4' r='2'/%3E%3Ccircle cx='12' cy='4' r='2'/%3E%3Ccircle cx='21' cy='4' r='2'/%3E%3C/g%3E%3C/svg%3E");
@@ -126,7 +126,7 @@ html[data-amounts-hidden]
    background-position: 11px center;
 }
 html[data-amounts-hidden]
-   :is(#lot-form, #cash-form)
-   :is([name='quantity'], [name='settled'], [name='fees'], [name='amount'])::selection {
+   :is(#lot-form, #cash-form, #tax-form)
+   :is([name='quantity'], [name='settled'], [name='fees'], [name='amount'], [name='taxPaid'])::selection {
    background: transparent;
 }

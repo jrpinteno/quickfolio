@@ -125,6 +125,7 @@ const storedPortfolio = (page: Page) =>
    JSON.parse(page.storage.getItem(KEYS.portfolio)!) as {
       trades: { id: string; quantity: number }[];
       cash: Record<string, number>;
+      taxPaid?: Record<string, number>;
    };
 
 /** Each holding as [symbol, shares], in table order; cash is left out. */
@@ -277,6 +278,12 @@ describe('hiding amounts', () => {
       // Share counts reveal the size too, though they aren't money.
       expect(holdings(page).map(([, shares]) => shares)).toEqual(['•••', '•••', '•••']);
 
+      // The after-tax card shows only rates.
+      await page.click('[data-tax-choice="ES"]');
+      expect(page.$('#tax').hidden).toBe(false);
+      expect(visibleAmounts(page)).toEqual([]);
+      expect(page.text('#tax')).toMatch(/\d+\.\d%/);
+
       await page.click('#holdings [data-focus="NOKIA.HE"]');
       expect(visibleAmounts(page)).toEqual([]);
 
@@ -321,6 +328,70 @@ describe('the display menu', () => {
       menu.open = true;
       await page.click('#summary');
       expect(menu.open).toBe(false);
+   });
+});
+
+describe('the tax estimate', () => {
+   it('is off until chosen, then shows each year after Spanish tax and remembers the choice', async () => {
+      const page = await open();
+
+      expect(page.$('#tax').hidden).toBe(true);
+      await page.click('[data-tax-choice="ES"]');
+
+      expect(page.$('[data-tax-choice="ES"]').getAttribute('aria-pressed')).toBe('true');
+      expect(page.storage.getItem(KEYS.tax)).toBe('ES');
+      const rows = page.$$('#tax tbody tr').map((row) => row.querySelector('td')!.textContent.trim());
+
+      // The sample sold AAPL in 2024 and MSFT in 2025; selling what is left closes the table.
+      expect(rows).toEqual(expect.arrayContaining(['2024', '2025']));
+      expect(rows.at(-1)).toBe('Sell all today');
+      expect(page.text('#tax')).toMatch(/Total [+-]€[\d,]+ after tax/);
+      expectSoundMarkup(page);
+
+      const again = await reload(page);
+
+      expect(again.$('#tax').hidden).toBe(false);
+   });
+
+   it('is in EUR whatever the reporting currency, and hidden for a single stock', async () => {
+      const page = await open({ storage: { [KEYS.portfolio]: SAMPLE, [KEYS.tax]: 'ES', [KEYS.reporting]: 'USD' } });
+
+      expect(page.text('#tax')).toContain('in EUR · estimate');
+      expect(page.text('#tax')).not.toContain('$');
+
+      await page.click('#holdings [data-focus="AAPL"]');
+      expect(page.$('#tax').hidden).toBe(true);
+   });
+
+   it('takes the tax paid as filed for a year, keeps it in the export, and removes it again', async () => {
+      const page = await open({ storage: { [KEYS.portfolio]: SAMPLE, [KEYS.tax]: 'ES' } });
+      const row2024 = () => page.$$('#tax tbody tr').find((r) => r.querySelector('td')!.textContent.trim() === '2024')!;
+
+      expect(page.$('#tax-form').hidden).toBe(false);
+      expect(row2024().textContent).toContain('est.');
+
+      await page.fill('#tax-form', { year: '2024', taxPaid: '123.45' });
+      await page.submit('#tax-form');
+
+      expect(row2024().textContent).toContain('€123.45');
+      expect(row2024().textContent).toContain('filed');
+      expect(storedPortfolio(page).taxPaid).toEqual({ 2024: 123.45 });
+
+      await page.click('#export');
+      expect(JSON.parse(page.downloads[0]!.text)).toMatchObject({ version: 3, taxPaid: { 2024: 123.45 } });
+
+      await page.fill('#tax-form', { year: '2024', taxPaid: '' });
+      await page.submit('#tax-form');
+      expect(row2024().textContent).toContain('est.');
+      expect(storedPortfolio(page)).not.toHaveProperty('taxPaid');
+   });
+
+   it('goes away when switched off', async () => {
+      const page = await open({ storage: { [KEYS.portfolio]: SAMPLE, [KEYS.tax]: 'ES' } });
+
+      await page.click('[data-tax-choice=""]');
+      expect(page.$('#tax').hidden).toBe(true);
+      expect(page.storage.getItem(KEYS.tax)).toBeNull();
    });
 });
 

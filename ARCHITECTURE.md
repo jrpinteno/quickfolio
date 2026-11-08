@@ -13,7 +13,7 @@ main.ts: wires everything together
 
 | Directory | Holds | May import |
 |---|---|---|
-| `domain/` | The ledger and every calculation: FIFO matching, valuation, returns, history, intraday curve, allocation. Pure functions over plain data. | `domain` |
+| `domain/` | The ledger and every calculation: FIFO matching, valuation, returns, history, intraday curve, allocation, the Spanish tax estimate (`tax.ts`, EUR amounts per year in, no trades). Pure functions over plain data. | `domain` |
 | `market/` | Yahoo and Frankfurter clients plus their response parsing. The only `fetch` calls. | `domain` |
 | `backup/` | The data format: validation and migration of stored or imported data (`schema.ts`) and the export file (`export.ts`). | `domain` |
 | `persistence/` | localStorage: every key lives in `storage.ts`, and nothing else touches storage. | `backup`, `domain` |
@@ -27,9 +27,10 @@ main.ts: wires everything together
 1. **Loading the store.** `main.ts` loads the portfolio, market cache, snapshots, preferences and backup state (latest export, dismissed reminder) into one store.
 2. **Writing back.** Subscribers write whatever changed back to storage.
 3. **Rendering.** The dashboard re-renders every section on each change.
-4. **Handling user actions.** The UI calls `app/` functions such as `updateView`, `commitTrades` and `refresh`. Those functions replace state, and nothing mutates it.
-5. **Formatting amounts.** Every amount goes through `ui/format.ts` `createFormat`. "Hide amounts" is therefore decided in one place: `money` and `qty` mask, while `perShare` and percentages stay visible.
-6. **Local-only state.** The trade form keeps its draft to itself; only a saved trade reaches the store. The transactions list keeps its current page the same way, while the page size is a remembered view option. Theme and layout are presentation only and live in `ui/display/`.
+4. **Tax estimate.** When a tax regime is chosen, `app/view.ts` values the portfolio in EUR (again, if the dashboard reports in USD), totals each year's sales and dividends (each dividend at the ECB rate of its ex-date from the cached FX history), and passes them to `domain/tax.ts`, with the tax paid per year that the user entered (`Portfolio.taxPaid`, part of the ledger and the export since format 3), which replaces that year's estimate. The result reaches sections as `RenderContext.tax`, only for the whole portfolio.
+5. **Handling user actions.** The UI calls `app/` functions such as `updateView`, `commitTrades` and `refresh`. Those functions replace state, and nothing mutates it.
+6. **Formatting amounts.** Every amount goes through `ui/format.ts` `createFormat`. "Hide amounts" is therefore decided in one place: `money` and `qty` mask, while `perShare` and percentages stay visible.
+7. **Local-only state.** The trade form keeps its draft to itself; only a saved trade reaches the store. The transactions list keeps its current page the same way, while the page size is a remembered view option. Theme and layout are presentation only and live in `ui/display/`.
 
 ## Rules worth keeping
 

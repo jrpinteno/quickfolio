@@ -13,6 +13,8 @@ export const KEYS = {
    layout: 'quickfolio:layout',
    hideAmounts: 'quickfolio:hide-amounts',
    pageSize: 'quickfolio:page-size',
+   /** Which country's tax to estimate, if any. */
+   tax: 'quickfolio:tax',
    /** When the trades and cash were last exported, and a fingerprint of them, for the backup reminder. */
    lastExport: 'quickfolio:last-export:v1',
    /** Set once the backup reminder is dismissed; it doesn't come back. */

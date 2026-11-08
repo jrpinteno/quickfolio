@@ -9,6 +9,7 @@ export interface Preferences {
    layout?: string;
    hideAmounts: boolean;
    pageSize?: number;
+   tax?: string;
 }
 
 export function loadPreferences(): Preferences {
@@ -22,6 +23,7 @@ export function loadPreferences(): Preferences {
       layout: text(KEYS.layout),
       hideAmounts: readText(KEYS.hideAmounts) === '1',
       pageSize: Number(text(KEYS.pageSize)) || undefined,
+      tax: text(KEYS.tax),
    };
 }
 
@@ -65,5 +67,9 @@ export function savePreferences(next: Partial<Preferences>, previous: Partial<Pr
 
    if (next.pageSize !== previous.pageSize) {
       write(KEYS.pageSize, next.pageSize === undefined ? undefined : String(next.pageSize));
+   }
+
+   if (next.tax !== previous.tax) {
+      write(KEYS.tax, next.tax);
    }
 }

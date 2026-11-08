@@ -1,4 +1,5 @@
 import type { AppState } from '../../app/state';
+import type { TaxEstimate } from '../../domain/tax';
 import type { Summary } from '../../domain/valuation';
 import type { Format } from '../format';
 
@@ -10,5 +11,7 @@ export interface RenderContext {
    /** The whole portfolio, whatever is focused. */
    full: Summary;
    focused?: string;
+   /** The tax estimate in EUR, when one is chosen and the whole portfolio is shown. */
+   tax?: TaxEstimate;
    fmt: Format;
 }

@@ -32,6 +32,11 @@
                         <button type="button" data-layout-choice="table">Table</button>
                         <button type="button" data-layout-choice="cards">Cards</button>
                      </div>
+                     <div class="display-label" id="tax-label">Tax estimate</div>
+                     <div class="segmented" id="tax-choices" role="group" aria-labelledby="tax-label">
+                        <button type="button" data-tax-choice="">Off</button>
+                        <button type="button" data-tax-choice="ES">Spain</button>
+                     </div>
                      <label class="display-switch">
                         <input type="checkbox" id="hide-amounts" role="switch" />
                         <span>
@@ -53,6 +58,7 @@
             <section id="allocation" class="card"></section>
          </div>
          <section id="holdings" class="card"></section>
+         <section id="tax" class="card" hidden></section>
          <section id="realized" class="card" hidden></section>
 
          <details id="manage" class="card" open>
@@ -127,6 +133,25 @@
                      </div>
                      <p class="hint">Replaces the current balance; 0 removes it.</p>
                      <div class="actions"><button type="submit" class="btn btn-primary">Set balance</button></div>
+                  </form>
+
+                  <form id="tax-form" class="panel" autocomplete="off" hidden>
+                     <h3>Tax paid, as filed</h3>
+                     <div class="fields">
+                        <label>
+                           Year
+                           <input name="year" type="number" min="1900" max="2099" step="1" required />
+                        </label>
+                        <label>
+                           Tax in EUR
+                           <input name="taxPaid" placeholder=" " type="number" step="any" min="0" />
+                        </label>
+                     </div>
+                     <p class="hint" id="tax-status">
+                        The savings tax your return charged on these stocks' gains and dividends. It replaces the year's estimate; empty
+                        removes it.
+                     </p>
+                     <div class="actions"><button type="submit" class="btn btn-primary">Save</button></div>
                   </form>
 
                   <div class="panel">

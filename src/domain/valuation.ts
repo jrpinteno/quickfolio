@@ -88,6 +88,8 @@ export interface Holding {
    dividendsLocal?: number;
    /** `dividendsLocal` at today's rate. */
    dividends?: number;
+   /** Each dividend making up `dividendsLocal`: its ex-date (epoch ms) and gross amount, in the holding's currency. */
+   dividendsPaid?: { date: number; amountLocal: number }[];
    /** Dividends with ex-dates in the last 12 months over today's price. */
    yieldTtm?: number;
    dayPct?: number;
@@ -275,6 +277,7 @@ function marketValue(open: Position[], price: number, rateNow: number, toBase: T
 function dividendsEarned(positions: Position[], quote: Quote, rateNow: number, now: number) {
    let amountLocal = 0;
    const flows: Flow[] = [];
+   const paid: { date: number; amountLocal: number }[] = [];
 
    for (const p of positions) {
       const from = affectedFrom(p.buy);
@@ -296,11 +299,12 @@ function dividendsEarned(positions: Position[], quote: Quote, rateNow: number, n
          }
 
          amountLocal += d.amount * entitled;
+         paid.push({ date: d.date, amountLocal: d.amount * entitled });
          flows.push({ t: d.date, amount: d.amount * entitled * rateNow });
       }
    }
 
-   return { amountLocal, flows };
+   return { amountLocal, flows, paid };
 }
 
 /** Trailing yield, today's move and the distance from the 52-week high, for shares still held. */
@@ -382,7 +386,8 @@ function valueHolding(
    const rateNow = quote && quote.currency === currency && fx[currency] && usdPerBaseNow ? fx[base]! / fx[currency] : undefined;
    const { valueLocal, pricePl, fxPl } =
       quote && rateNow !== undefined ? marketValue(open, quote.price, rateNow, toBase) : { valueLocal: 0, pricePl: 0, fxPl: 0 };
-   const dividends = quote && rateNow !== undefined ? dividendsEarned(positions, quote, rateNow, now) : { amountLocal: 0, flows: [] };
+   const dividends =
+      quote && rateNow !== undefined ? dividendsEarned(positions, quote, rateNow, now) : { amountLocal: 0, flows: [], paid: [] };
 
    flows.push(...dividends.flows);
 
@@ -400,6 +405,7 @@ function valueHolding(
       returnPct: closed ? undefined : ratio(value - holding.basis, holding.basis),
       annualized: now - start >= MIN_ANNUALIZE_MS ? xirr(flows) : undefined,
       dividendsLocal: dividends.amountLocal,
+      dividendsPaid: dividends.paid,
       dividends: rateNow !== undefined ? dividends.amountLocal * rateNow : 0,
    } satisfies Partial<Holding>);
 

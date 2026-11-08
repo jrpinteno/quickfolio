@@ -1,6 +1,6 @@
 // Validation and upgrade of untrusted data: what the browser has stored and what an export file contains.
 // Every format version ever written must keep parsing here.
-import { isCurrencyCode, isFiniteNumber, isIsoDate, isSymbol } from '../domain/codes';
+import { isCurrencyCode, isFiniteNumber, isIsoDate, isSymbol, isYear } from '../domain/codes';
 import type { Snapshot } from '../domain/snapshots';
 import type { Portfolio, Side, Trade } from '../domain/types';
 
@@ -22,7 +22,7 @@ type RawTrade = Unchecked<Trade> & {
  * repeats an earlier one gets a new id, since edits and deletes act by id.
  */
 export function parsePortfolio(data: unknown): Portfolio {
-   const d = data as { trades?: unknown; lots?: unknown; cash?: unknown } | null;
+   const d = data as { trades?: unknown; lots?: unknown; cash?: unknown; taxPaid?: unknown } | null;
    const list = d?.trades ?? d?.lots;
 
    if (!d || !Array.isArray(list) || typeof d.cash !== 'object' || d.cash === null) {
@@ -116,7 +116,32 @@ export function parsePortfolio(data: unknown): Portfolio {
       cash[currency] = amount;
    }
 
-   return { trades, cash };
+   const taxPaid = parseTaxPaid(d.taxPaid);
+
+   return taxPaid ? { trades, cash, taxPaid } : { trades, cash };
+}
+
+/** Tax paid per year: absent in files written before it existed; never malformed in those that have it. */
+function parseTaxPaid(data: unknown): Record<string, number> | undefined {
+   if (data === undefined) {
+      return undefined;
+   }
+
+   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+      throw new Error('The tax paid per year is malformed');
+   }
+
+   const out: Record<string, number> = {};
+
+   for (const [year, amount] of Object.entries(data)) {
+      if (!isYear(year) || !isFiniteNumber(amount) || amount < 0) {
+         throw new Error(`The tax paid for ${isYear(year) ? year : 'a year'} is malformed`);
+      }
+
+      out[year] = amount;
+   }
+
+   return Object.keys(out).length ? out : undefined;
 }
 
 /**

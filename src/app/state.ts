@@ -1,6 +1,7 @@
 import type { ExportMark } from '../backup/export';
 import type { MarketData } from '../domain/market';
 import { RANGES, type RangeKey } from '../domain/ranges';
+import { TAX_REGIMES, type TaxRegime } from '../domain/tax';
 import type { Snapshot } from '../domain/snapshots';
 import { BASE, REPORTING, type Portfolio, type Reporting } from '../domain/types';
 import type { Store } from './store';
@@ -20,6 +21,8 @@ export interface ViewOptions {
    hideAmounts: boolean;
    /** Transactions per page of the ledger. */
    pageSize: PageSize;
+   /** Country whose tax on gains and dividends is estimated; none when absent. */
+   tax?: TaxRegime;
 }
 
 /** Outcome of the latest refresh. */
@@ -59,6 +62,7 @@ export function initialView(stored: {
    focus?: string;
    hideAmounts: boolean;
    pageSize?: number;
+   tax?: string;
 }): ViewOptions {
    return {
       reporting: REPORTING.find((c) => c === stored.reporting) ?? BASE,
@@ -66,6 +70,7 @@ export function initialView(stored: {
       range: RANGES.find((r) => r.key === stored.range)?.key ?? '1Y',
       hideAmounts: stored.hideAmounts,
       pageSize: PAGE_SIZES.find((n) => n === stored.pageSize) ?? PAGE_SIZES[0],
+      tax: TAX_REGIMES.find((r) => r === stored.tax),
    };
 }
 

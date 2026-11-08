@@ -4,8 +4,8 @@ import { tradeAmountLocal, tradeAmountUsd, usdPerBaseAt } from '../domain/trade'
 import type { Portfolio, Trade } from '../domain/types';
 import type { Summary } from '../domain/valuation';
 
-/** Format version of the export; `parsePortfolio` also reads every earlier one. */
-const EXPORT_VERSION = 2;
+/** Format version of the export; `parsePortfolio` also reads every earlier one. 3 added `taxPaid`. */
+const EXPORT_VERSION = 3;
 
 type Pair = { USD: number; EUR: number };
 
@@ -117,6 +117,7 @@ export function buildExport(
       exportedAt: exportedAt.toISOString(),
       trades,
       cash: portfolio.cash,
+      ...(portfolio.taxPaid ? { taxPaid: portfolio.taxPaid } : {}),
       snapshots,
       report: {
          note:
